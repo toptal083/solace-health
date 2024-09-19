@@ -3,104 +3,116 @@
 import { useEffect, useState, useCallback } from "react";
 
 export default function Home() {
-  // State to store all advocates
   const [advocates, setAdvocates] = useState<Advocate[]>([]);
-  // State to store filtered advocates based on search
-  const [filteredAdvocates, setFilteredAdvocates] = useState<Advocate[]>([]);
-  // State to store the current search term
   const [searchTerm, setSearchTerm] = useState<string>("");
+  const [paginationInfo, setPaginationInfo] = useState<PaginationInfo>({
+    currentPage: 1,
+    totalPages: 1,
+    totalCount: 0,
+  });
+  const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  // Fetch advocates data when component mounts
+  const fetchAdvocates = useCallback(async (page: number = 1) => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(`/api/advocates?page=${page}&limit=10&search=${searchTerm}`);
+      const { data, currentPage, totalPages, totalCount } = await response.json();
+      setAdvocates(data);
+      setPaginationInfo({ currentPage, totalPages, totalCount });
+    } catch (error) {
+      console.error("Error fetching advocates:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [searchTerm]);
+
   useEffect(() => {
-    const fetchAdvocates = async () => {
-      try {
-        const response = await fetch("/api/advocates");
-        const { data } = await response.json();
-        setAdvocates(data);
-        setFilteredAdvocates(data);
-      } catch (error) {
-        console.error("Error fetching advocates:", error);
-      }
-    };
-
     fetchAdvocates();
-  }, []);
+  }, [fetchAdvocates]);
 
-  // Memoized function to filter advocates based on search term
-  const filterAdvocates = useCallback((term: string) => {
-    return advocates.filter((advocate) =>
-      // Check if any property of the advocate includes the search term
-      Object.values(advocate).some((value) =>
-        value.toString().toLowerCase().includes(term.toLowerCase())
-      )
-    );
-  }, [advocates]);
-
-  // Handle search input changes
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const term = e.target.value;
-    setSearchTerm(term);
-    setFilteredAdvocates(filterAdvocates(term));
+    setSearchTerm(e.target.value);
   };
 
-  // Reset search to show all advocates
-  const resetSearch = () => {
-    setSearchTerm("");
-    setFilteredAdvocates(advocates);
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    fetchAdvocates();
+  };
+
+  const handlePageChange = (newPage: number) => {
+    fetchAdvocates(newPage);
   };
 
   return (
     <main className="m-6">
       <h1 className="text-2xl font-bold mb-4">Solace Advocates</h1>
       
-      {/* Search section */}
-      <div className="mb-4">
-        <p>Search</p>
-        <p>Searching for: <span>{searchTerm}</span></p>
+      <form onSubmit={handleSearchSubmit} className="mb-4">
         <input
           className="border border-gray-300 rounded px-2 py-1 mr-2"
           value={searchTerm}
           onChange={handleSearch}
           placeholder="Search advocates..."
         />
-        <button
-          className="bg-blue-500 text-white px-4 py-1 rounded"
-          onClick={resetSearch}
-        >
-          Reset Search
+        <button type="submit" className="bg-blue-500 text-white px-4 py-1 rounded">
+          Search
         </button>
-      </div>
+      </form>
 
-      {/* Advocates table */}
-      <table className="w-full border-collapse">
-        <thead>
-          <tr>
-            <th className="border p-2">First Name</th>
-            <th className="border p-2">Last Name</th>
-            <th className="border p-2">City</th>
-            <th className="border p-2">Degree</th>
-            <th className="border p-2">Specialties</th>
-            <th className="border p-2">Years of Experience</th>
-            <th className="border p-2">Phone Number</th>
-          </tr>
-        </thead>
-        <tbody>
-          {/* Map through filtered advocates and render each row */}
-          {filteredAdvocates.map((advocate, index) => (
-            <tr key={index}>
-              <td className="border p-2">{advocate.firstName}</td>
-              <td className="border p-2">{advocate.lastName}</td>
-              <td className="border p-2">{advocate.city}</td>
-              <td className="border p-2">{advocate.degree}</td>
-              <td className="border p-2">
-                {advocate.specialties.join(", ")}
-              </td>
-              <td className="border p-2">{advocate.yearsOfExperience}</td>
-              <td className="border p-2">{advocate.phoneNumber}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      {isLoading ? (
+        <p>Loading...</p>
+      ) : (
+        <>
+          <table className="w-full border-collapse">
+            <thead>
+              <tr>
+                <th className="border p-2">First Name</th>
+                <th className="border p-2">Last Name</th>
+                <th className="border p-2">City</th>
+                <th className="border p-2">Degree</th>
+                <th className="border p-2">Specialties</th>
+                <th className="border p-2">Years of Experience</th>
+                <th className="border p-2">Phone Number</th>
+              </tr>
+            </thead>
+            <tbody>
+              {advocates.map((advocate, index) => (
+                <tr key={index}>
+                  <td className="border p-2">{advocate.firstName}</td>
+                  <td className="border p-2">{advocate.lastName}</td>
+                  <td className="border p-2">{advocate.city}</td>
+                  <td className="border p-2">{advocate.degree}</td>
+                  <td className="border p-2">{advocate.specialties.join(", ")}</td>
+                  <td className="border p-2">{advocate.yearsOfExperience}</td>
+                  <td className="border p-2">{advocate.phoneNumber}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <div className="mt-4 flex justify-between items-center">
+            <p>
+              Showing {(paginationInfo.currentPage - 1) * 10 + 1} to {Math.min(paginationInfo.currentPage * 10, paginationInfo.totalCount)} of {paginationInfo.totalCount} results
+            </p>
+            <div>
+              <button 
+                onClick={() => handlePageChange(paginationInfo.currentPage - 1)} 
+                disabled={paginationInfo.currentPage === 1}
+                className="bg-blue-500 text-white px-4 py-1 rounded mr-2"
+              >
+                Previous
+              </button>
+              <button 
+                onClick={() => handlePageChange(paginationInfo.currentPage + 1)} 
+                disabled={paginationInfo.currentPage === paginationInfo.totalPages}
+                className="bg-blue-500 text-white px-4 py-1 rounded"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </main>
   );
 }
