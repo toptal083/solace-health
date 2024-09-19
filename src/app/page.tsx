@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
+import debounce from 'lodash/debounce';
 
 export default function Home() {
   const [advocates, setAdvocates] = useState<Advocate[]>([]);
@@ -12,10 +13,10 @@ export default function Home() {
   });
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  const fetchAdvocates = useCallback(async (page: number = 1) => {
+  const fetchAdvocates = useCallback(async (page: number = 1, search: string = "") => {
     setIsLoading(true);
     try {
-      const response = await fetch(`/api/advocates?page=${page}&limit=10&search=${searchTerm}`);
+      const response = await fetch(`/api/advocates?page=${page}&limit=10&search=${search}`);
       const { data, currentPage, totalPages, totalCount } = await response.json();
       setAdvocates(data);
       setPaginationInfo({ currentPage, totalPages, totalCount });
@@ -24,40 +25,45 @@ export default function Home() {
     } finally {
       setIsLoading(false);
     }
-  }, [searchTerm]);
+  }, []);
+
+  // Debounced search function
+  const debouncedSearch = useMemo(
+    () =>
+      debounce((search: string) => {
+        fetchAdvocates(1, search);
+      }, 500),
+    [fetchAdvocates]
+  );
 
   useEffect(() => {
-    fetchAdvocates();
-  }, [fetchAdvocates]);
+    debouncedSearch(searchTerm);
+    // Cleanup function to cancel the debounce on unmount
+    return () => {
+      debouncedSearch.cancel();
+    };
+  }, [searchTerm, debouncedSearch]);
 
   const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(e.target.value);
   };
 
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    fetchAdvocates();
-  };
-
   const handlePageChange = (newPage: number) => {
-    fetchAdvocates(newPage);
+    fetchAdvocates(newPage, searchTerm);
   };
 
   return (
     <main className="m-6">
       <h1 className="text-2xl font-bold mb-4">Solace Advocates</h1>
       
-      <form onSubmit={handleSearchSubmit} className="mb-4">
+      <div className="mb-4">
         <input
           className="border border-gray-300 rounded px-2 py-1 mr-2"
           value={searchTerm}
           onChange={handleSearch}
           placeholder="Search advocates..."
         />
-        <button type="submit" className="bg-blue-500 text-white px-4 py-1 rounded">
-          Search
-        </button>
-      </form>
+      </div>
 
       {isLoading ? (
         <p>Loading...</p>
