@@ -7,3 +7,9 @@ interface Advocate {
     yearsOfExperience: number;
     phoneNumber: number;
 }
+
+interface PaginationInfo {
+    currentPage: number;
+    totalPages: number;
+    totalCount: number;
+}
